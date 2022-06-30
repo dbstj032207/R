@@ -98,3 +98,34 @@ sunflowerplot(x, y)
 # 데이터의 전체적인 윤곽을 살펴보는 그래프
 # 데이터 항목에 대한 변화의 정도를 한눈에 파악
 str(mtcars)
+stars(mtcars[1:4])
+stars(mtcars[1:4], key.loc = c(13, 1.0), flip.labels = F)
+stars(mtcars[1:4], key.loc = c(13, 1.0), flip.labels = F,
+      draw.segments = T)
+
+
+##### ggplot2 #####
+# install.packages("ggplot2")
+library(ggplot2)
+
+
+### 산포도
+head(mpg)
+
+# data, aes(배경설정) + geom_그래프 종류
+ggplot(data = mpg, aes(x = displ, y = hwy)) + geom_point()
+
+# data, aes(배경설정) + geom_그래프 종류 + 설정추가
+ggplot(data = mpg, aes(x = displ, y = hwy)) + geom_point() + xlim(3, 6) + ylim(10, 30)
+
+### 막대그래프: geom_col(), 히스토그램: geom_bar()
+# 구동박식(drv)별로 고속도로 평균연비를 조회하고 그 결과를 그래프로 표현
+library(dplyr)
+df_mpg <- mpg %>% group_by(drv) %>% summarise(mean_hwy=mean(hwy))
+df_mpg
+
+ggplot(df_mpg, aes(drv, mean_hwy)) + geom_col()
+ggplot(df_mpg, aes(reorder(drv, mean_hwy), mean_hwy)) + geom_col()
+
+ggplot(mpg, aes(drv)) + geom_bar()
+ggplot(mpg, aes(hwy)) + geom_bar()

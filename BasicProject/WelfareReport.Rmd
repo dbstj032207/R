@@ -1,0 +1,622 @@
+---
+title: "Welfare Report"
+author: "이윤석"
+date: '2022-06-29'
+output: html_document
+---
+
+---
+
+## 1. Data Prepare
++ 출처 : https://www.koweps.re.kr:442
+
+### 1-1. 패키지 준비
+```{r}
+# install.packages("foreign")
+# install.packages("readxl")
+```
+
+```{r}
+library(foreign)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+```
+
+### 1-2. 데이터 불러오기
+```{r}
+raw_welfare <- read.spss("C:/RData/Koweps_hpc10_2015_beta1.sav", to.data.frame = T)
+```
+
+```{r}
+# 복사본 만들기
+welfare <- raw_welfare
+```
+
+### 1-3. 데이터 검토하기
+```{r}
+head(welfare)
+tail(welfare)
+dim(welfare)
+```
+### 1-4. 특성 선택
+```{r}
+welfare <- rename(welfare, sex=h10_g3, birth=h10_g4, marriage=h10_g10,
+                  religion=h10_g11, income=p1002_8aq1, code_job=h10_eco9,
+                  code_region=h10_reg7)
+
+```
+
+```{r}
+welfare <- welfare[, c("sex", "birth", "marriage", "religion", "income", "code_job", "code_region")]
+
+```
+
+```{r}
+str(welfare)
+
+```
+
+---
+
+## 2. EDA
+
+### 2-1. 성별에 따른 월급 차이?
+```{r}
+# 성별 변수 검토 1:남자 2:여자
+table(welfare$sex)
+
+```
+
+```{r}
+# 원급 변수 검토
+summary(welfare$income)
+
+```
+
+```{r}
+qplot(welfare$income) + xlim(0, 1000)
+
+```
+
+### 2-1-1. 전처리
+```{r}
+# 성별 항목에 대한 이름 변경
+welfare$sex <- ifelse(welfare$sex == 1, "male", "female")
+table(welfare$sex)
+```
+
+```{r}
+# 성별 변수에 대한 전처리: 이상치, 결측치
+welfare$sex <- ifelse(welfare$sex == 9, NA, welfare$sex)
+table(is.na(welfare$sex))
+```
+
+```{r}
+# 월급 변수에 대한 전처리: 이상치, 결측치
+welfare$income <- ifelse(welfare$income %in% c(0, 9999), NA, welfare$income)
+table(is.na(welfare$income))
+```
+
+### 2-1-2. 결론
+```{r}
+sex_income <- welfare %>% filter(!is.na(income)) %>% group_by(sex) %>%
+  summarise(mean_income=mean(income))
+
+sex_income
+```
+
+```{r}
+ggplot(sex_income, aes(sex, mean_income)) + geom_col()
+```
+
+### 2-2. 몇 살 때 월급을 가장 많이 받을까?
+
+```{r}
+# 변수 검토
+class(welfare$birth)
+```
+
+```{r}
+summary(welfare$birth)
+
+qplot(welfare$birth)
+```
+
+
+### 2-2-1. 전처리
+```{r}
+# 이상치 확인
+summary(welfare$birth)
+```
+
+```{r}
+# 결측치 확인
+table(is.na(welfare$birth))
+```
+
+이상치와 결측치가 없다.
+
+
+ 
+
+```{r}
+# 파생변수 만들기 - 나이
+welfare$age <- 2015 - welfare$birth + 1
+summary(welfare$age)
+```
+
+```{r}
+qplot(welfare$age)
+```
+
+
+
+### 2-2-2.결론
+
+
+```{r}
+# 1. 나이에 따른 월급 평균표 만들기
+age_income <- welfare %>% 
+  filter(!is.na(income)) %>%  
+  group_by(age) %>% 
+  summarise(mean_income=mean(income))
+
+head(age_income)
+```
+
+
+
+```{r}
+# 2. 그래프 만들기
+ggplot(data = age_income, aes(x = age, y = mean_income)) + geom_line()
+```
+
+20대 초반 100만원의 월급을 받고 일을 시작하여 40대 까지는 점차 상승하여 
+300만원의 월급을 50대까지 유지하고, 그 이후 점차 하락하는 추세를 보여준다. 
+
+
+### 2-3. 연령대에 따른 월급차이 
+
+```{r}
+# 1. 파생변수 만들기 - 연령대
+welfare <- welfare %>% mutate(ageg = ifelse(age < 30, "young",
+                              ifelse(age <= 59, "middle", "old")))
+table(welfare$ageg)
+```
+
+```{r}
+qplot(welfare$ageg)
+```
+
+```{r}
+# 2. 연령대에 따른 월급차이 분석하기
+```
+
+
+
+```{r}
+ageg_income <- welfare %>% 
+  filter(!is.na(welfare$income)) %>% 
+  group_by(ageg) %>% 
+  summarise(mean_income=mean(income))
+
+ageg_income
+```
+
+초년 163만원, 중년 281만원, 노년 125만원이라는 결과를 얻을 수 있다.
+
+
+```{r}
+ggplot(data = ageg_income, aes(x = ageg, y = mean_income)) + geom_col() + 
+  scale_x_discrete(limits = c("young", "middle", "old"))
+```
+
+앞서 확인한 바와같이, 중년층의 소득이 가장 높은것을 확인할 수 있다.
+
+
+### 2-4.연령대 및 성별에 따른 월급 차이
+
+```{r}
+# 1. 연령대 및 성별 월급 평균표 만들기
+sex_income <- welfare %>% 
+  filter(!is.na(income)) %>% 
+  group_by(ageg, sex) %>% 
+  summarise(mean_income=mean(income))
+```
+
+
+```{r}
+sex_income
+```
+
+
+```{r}
+ggplot(data = sex_income, aes(x = ageg, y = mean_income, fill = sex)) + geom_col(position = "dodge")+
+  scale_x_discrete(limits = c("young","middle","old"))
+```
+
+표에서 보이는 바와 같이 청년층의 경우, 여성과 남성의 소득차이는 별로 없음을 볼 수 있고,
+중년층, 장년층에서는 약 두배가량 남성의 소득이 높음을 볼 수 있다.
+가장 소득이 높은 층은 중년층 남성이다.
+
+
+### 2-4.1 나이 및 성별 월급 차이 분석하기
+```{r}
+# 성별 연령별 월급 평균표 만들기
+sex_age <- welfare %>%  
+  filter(!is.na(income)) %>% 
+  group_by(age, sex) %>%  
+  summarise(mean_income=mean(income))
+```
+
+
+```{r}
+head(sex_age)
+```
+
+
+```{r}
+# 그래프 만들기
+ggplot(data = sex_age, aes(x = age, y = mean_income, col = sex)) + geom_line()
+```
+
+그래프를 보게되면, 여성의 경우 30대 이후 소득이 감소하는 추세를 보이며,
+남성의 경우 50대 이후 소득이 감소하는 추세를 보인다.
+이는 대부분의 남성이 결혼이후 가정의 소득을 책임지고, 여성은 전업주부로 전향하기 때문으로 보인다.
+
+
+### 2.5 직업별 월급 차이
+```{r}
+# 변수 검토하기
+class(welfare$code_job)
+table(welfare$code_job)
+```
+
+### 2.5.1 전처리
+```{r}
+list_job <- read_excel("../data/Koweps_Codebook.xlsx", col_names = T, sheet = 2)
+head(list_job)
+```
+
+
+```{r}
+dim(list_job)
+```
+
+
+```{r}
+welfare <- left_join(welfare, list_job, by = "code_job")
+
+welfare %>% 
+  filter(!is.na(code_job)) %>%  
+  select(code_job, job) %>% 
+  head(10)
+```
+
+
+### 2.5.2 결론
+```{r}
+# 직업별 월급 차이 분석하기
+job_income <- welfare %>% 
+  filter(!is.na(income)) %>%  
+  group_by(job) %>% 
+  summarise(mean_income=mean(income))
+head(job_income)
+```
+
+
+```{r}
+top10 <- job_income %>% 
+  arrange(desc(mean_income)) %>% 
+  head(10)
+top10
+```
+
+
+```{r}
+ggplot(data = top10, aes(x = reorder(job, mean_income), y = mean_income)) + geom_col() + coord_flip()
+```
+
+가장 높은 소득을 보인 직업은 '금속 재료공학 기술자 및 시험원'로 845만원 가량 이고,
+가장 낮은 소득을 보인 직업은 '석유 및 화학물 가공장치 조작원'로 531만원 가량 이다.
+
+```{r}
+# 하위 10위 추출
+bottom10 <- job_income %>% 
+  arrange(mean_income) %>% 
+  head(10) 
+bottom10
+```
+
+
+```{r}
+ggplot(data = bottom10, aes(x = reorder(job, mean_income), y = mean_income)) + geom_col() + coord_flip() + ylim(0,850)
+```
+
+전체직업군중 가장 소득이 낮게 집계된 직종은 가사 및 육아 도우미 임을 알 수 있고,
+다음으로는 임업관련 종사자, 기타 서비스관련 단순 종사원 순임을 알 수 있다.
+
+### 2.6 성별 직업 빈도
+```{r}
+### 성별 직업 빈도 분석하기
+
+# 남성 직업 빈도 상위 10개 추출
+job_male <- welfare %>% 
+  filter(!is.na(job) & sex == "male") %>% 
+  group_by(job) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  head(10)
+
+job_male
+```
+
+
+```{r}
+# 여성 직업 빈도 상위 10개 추출
+job_female <- welfare %>% 
+  filter(!is.na(job) & sex == "female") %>% 
+  group_by(job) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>%
+  head(10)
+
+job_female
+```
+
+### 2.6.1 시각화 
+```{r}
+# 남성 직업 빈도 상위 10개
+ggplot(data = job_male, aes(x = reorder(job, n), y = n)) + geom_col() + coord_flip()
+```
+
+
+```{r}
+# 여성 직업 빈도 상위 10개
+ggplot(data = job_female, aes(x = reorder(job, n), y = n)) + geom_col() + coord_flip()
+```
+
+남녀 모두 작물 재배 종사자의 수가 가장 많은 것으로 확인되었으며,
+남성의 경우 자동차 운전원, 경영관련 사무원순으로 많았고,
+여성의 경우 청소원 및 환경 미화원, 매장판매 종사자순으로 많은 것으로 확인되었다.
+
+### 2.7 종교 유무에 따른 이혼율
+
+```{r}
+# 변수 검토
+class(welfare$religion)
+table(welfare$religion)
+```
+
+### 2.7.1 전처리
+```{r}
+# 종교 유무 이름 부여
+welfare$religion <- ifelse(welfare$religion == 1, "yes", "no")
+table(welfare$religion)
+```
+
+
+```{r}
+qplot(welfare$religion)
+```
+
+
+```{r}
+# 이혼 여부 변수 만들기
+
+welfare$group_marriage <- ifelse(welfare$marriage == 1, "marraige",
+                                 ifelse(welfare$marriage == 3, "divorce", NA))
+
+table(welfare$group_marriage)
+```
+
+
+```{r}
+table(is.na(welfare$group_marriage))
+qplot(welfare$group_marriage)
+```
+
+### 2.7.3 결론
+```{r}
+### 종교 유무에 따른 이혼율 분석하기
+religion_marriage <- welfare %>% 
+  filter(!is.na(group_marriage)) %>% 
+  group_by(religion, group_marriage) %>% 
+  summarise(n = n()) %>% 
+  mutate(tot_group = sum(n)) %>% 
+  mutate(pct = round(n/tot_group*100, 1))
+
+religion_marriage
+```
+
+
+```{r}
+# 이혼 추출
+divorce <- religion_marriage %>% 
+  filter(group_marriage == "divorce") %>% 
+  select(religion, pct)
+
+divorce
+```
+
+
+```{r}
+ggplot(data = divorce, aes(x = religion, y = pct)) + geom_col()
+```
+
+```{r}
+### 연령대 및 종교 유무에 따른 이혼율 분석하기
+
+# 연령대 별 이혼율
+ageg_marriage <- welfare %>% 
+  filter(!is.na(group_marriage)) %>% 
+  group_by(ageg, group_marriage) %>% 
+  summarise(n = n()) %>% 
+  mutate(tot_group = sum(n)) %>% 
+  mutate(pct = round(n/sum(n)*100, 1))
+
+ageg_marriage
+```
+
+
+```{r}
+# 초년 제외, 이혼 추출
+ageg_divorce <- ageg_marriage %>% 
+  filter(ageg != "young" & group_marriage == "divorce") %>% 
+  select(ageg, pct)
+
+ageg_divorce
+
+ggplot(ageg_divorce, aes(ageg, pct)) + geom_col() + geom_text(aes(label = pct)) + xlab("연령") + ylab("이혼율")
+```
+
+초년의 경우 사례가 부족하기 때문에 제외시켰고, 중년층이 이혼율이 장년층보다 높음을 확인할 수 있따.
+
+
+```{r}
+# 연령대, 종교 유무, 결혼 상태별 비율표 만들기
+ageg_religion_marriage <- welfare %>% 
+  filter(!is.na(group_marriage) & ageg != "young") %>% 
+  group_by(ageg, religion, group_marriage) %>% 
+  summarise(n = n()) %>% 
+  mutate(tot_group = sum(n)) %>% 
+  mutate(pct = round(n/sum(n)*100, 1))
+
+ageg_religion_marriage
+```
+
+
+```{r}
+# 연령대 및 종교 유무별 이혼율 표 만들기
+df_divorce <- ageg_religion_marriage %>% 
+  filter(group_marriage == "divorce") %>% 
+  select(ageg, religion, pct)
+
+df_divorce
+```
+
+
+```{r}
+ggplot(df_divorce, aes(ageg, pct, fill=religion)) + geom_col(position="dodge") + xlab("연령") + ylab("이혼율")
+```
+
+종교 유무에 대한 기준을 추가해 봤을때, 노년층에서는 유의미한 차이가 없었고, 
+중년층의 경우 종교가 있을 경우의 이혼율이 조금 더 낮음을 수 있었다.
+
+
+### 2.8 지역별 연령대 비율
+```{r}
+### 지역 변수 검토 및 전처리하기
+# 변수 확인
+class(welfare$code_region)
+table(welfare$code_region)
+```
+
+
+### 2.8.1 전처리
+```{r}
+# 지역 코드 목록 만들기
+list_region <- data.frame(code_region = c(1:7),
+                          region = c("서울", "수도권(인천/경기)",
+                                     "부산/경남/울산", "대구/경북", 
+                                     "대전/충남", "강원/충북",
+                                     "광주/전남/전북/제주도"))
+
+list_region
+```
+
+
+```{r}
+# 지역명 변수 추가
+welfare <- left_join(welfare, list_region, by="code_region")
+
+welfare %>% 
+  select(code_region, region) %>% 
+  head
+```
+
+
+```{r}
+### 지역별 연령대 비율 분석하기
+# 지역별 연령대 비율표
+region_ageg <- welfare %>% 
+  group_by(region, ageg) %>% 
+  summarise(n=n()) %>% 
+  mutate(pct = round(n/sum(n)*100, 2))
+```
+
+
+```{r}
+head(region_ageg)
+```
+
+
+```{r}
+# 그래프
+ggplot(region_ageg, aes(region, pct, fill=ageg)) + geom_col() + coord_flip() + xlab("지역") + ylab("연령대비율")
+```
+
+
+```{r}
+# 노년층 비율 내림차순 정렬
+list_order_old <- region_ageg %>% 
+  filter(ageg == "old") %>% 
+  arrange(pct)
+
+list_order_old
+```
+
+
+```{r}
+# 지역별 순서 변수 만들기
+order <- list_order_old$region
+order
+```
+
+
+```{r}
+ggplot(region_ageg, aes(region, pct, fill=ageg)) + 
+  geom_col() + 
+  coord_flip() + 
+  scale_x_discrete(limits=order)
+```
+
+
+```{r}
+# 연령대 순으로 다시 정렬
+region_ageg$ageg <- factor(region_ageg$ageg, level=c("old", "middle", "young"))
+levels(region_ageg$ageg)
+
+ggplot(region_ageg, aes(region, pct, fill=ageg)) + 
+  geom_col() + 
+  coord_flip() + 
+  scale_x_discrete(limits=order) + xlab("지역") + ylab("연령대비율")
+```
+
+장년층의 비율이 가장 높은 지역은 대구/경북 지역이였고, 가장 적은곳은 수도권 지역이였다.
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
